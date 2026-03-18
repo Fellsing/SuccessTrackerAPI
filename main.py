@@ -1,11 +1,16 @@
 from fastapi import FastAPI, Depends, HTTPException
 from contextlib import asynccontextmanager
-import math
-from database import SessionLocal
-from models.models import SuccessDB, CategoryDB ,create_tables
 from sqlalchemy import desc, func
 from sqlalchemy.orm import Session
+import math
+from auth.router import router as auth_router
+from auth.auth_utils import get_current_user
+from database import SessionLocal, get_db, engine,Base
+from models.models import  SuccessDB, CategoryDB ,create_tables, UserDB
 from schemas import SuccessNote, CategoryNote, UpdateSNote
+
+
+
 
 @asynccontextmanager
 async def lifespan(app:FastAPI):
@@ -14,14 +19,7 @@ async def lifespan(app:FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
-
-
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+app.include_router(auth_router)
 
 
 @app.post("/categories")
@@ -52,9 +50,9 @@ async def read_note(note_id: int, db: Session = Depends(get_db) ):
 
 
 @app.get("/get_successes")
-async def read_notes(db: Session = Depends(get_db)):
+async def read_notes(db: Session = Depends(get_db), current_user:UserDB = Depends(get_current_user)):
     # Запрос к базе: "выбрать все записи из таблицы SuccessDB"
-    notes = db.query(SuccessDB).order_by(desc(SuccessDB.creation_date)).all()
+    notes = db.query(SuccessDB).filter(SuccessDB.owner_id==current_user.id).order_by(desc(SuccessDB.creation_date)).all()
     return notes
 
 
@@ -80,13 +78,14 @@ async def read_average(db:Session=Depends(get_db)):
 
 
 @app.post("/add_success")
-async def create_note(note: SuccessNote, db: Session = Depends(get_db)):
+async def create_note(note: SuccessNote, db: Session = Depends(get_db), current_user: UserDB = Depends(get_current_user)):
     # 1. Создаем объект для базы на основе полученных данных
     new_entry = SuccessDB(
         title=note.title,
         description=note.description,
         priority=note.priority,
-        category_id = note.category_id
+        category_id = note.category_id,
+        owner_id = current_user.id
     )
     if db.query(SuccessDB).filter(SuccessDB.title==new_entry.title).first():
         raise HTTPException(status_code=400, detail='Ты это уже делал!!!')

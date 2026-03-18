@@ -6,10 +6,17 @@ from sqlalchemy.ext.declarative import declarative_base
 
 load_dotenv()
 
-# Замени 'YOUR_PASSWORD' на свой настоящий пароль!
-DATABASE_URL = os.getenv("DATABASE_URL")
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://user:pass@localhost:5432/db")
 Base = declarative_base()
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 
 
