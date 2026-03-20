@@ -16,7 +16,7 @@ class SuccessDB(Base):
     __tablename__ = "success_notes"
 
     id = Column(Integer, primary_key=True, index=True)
-    title = Column(String)
+    header = Column(String)
     description = Column(String)
     priority = Column(Integer)
     creation_date = Column(DateTime, default=datetime.datetime.utcnow)
