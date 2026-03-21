@@ -8,6 +8,7 @@ class CategoryDB(Base):
     __tablename__ = "categories"
     id = Column(Integer, primary_key=True, index=True)
     category_name = Column(String, unique=True)
+    description = Column(String)
 
     notes = relationship("SuccessDB", back_populates="category")
 
