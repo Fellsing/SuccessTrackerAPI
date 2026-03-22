@@ -1,11 +1,10 @@
 import re
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 class CategoryNote(BaseModel):
     category_name: str = Field(min_length=2, max_length=50)
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True) # Новый стандарт V2
 
 
 
@@ -19,5 +18,4 @@ class CategoryOut(BaseModel):
     category_name: str
     description: str | None = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

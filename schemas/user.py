@@ -1,5 +1,5 @@
 import re
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class UserNote(BaseModel):
@@ -19,5 +19,4 @@ class UserNote(BaseModel):
 
 
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

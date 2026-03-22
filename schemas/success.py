@@ -1,5 +1,5 @@
 import re
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class SuccessNote(BaseModel):
@@ -8,10 +8,7 @@ class SuccessNote(BaseModel):
     priority: int = Field(1, ge=1, le=10)
     category_id: int = Field(1, ge=1, le=99)
 
-    class Config:
-        from_attributes = (
-            True  # Позволяет Pydantic легко дружить с объектами SQLAlchemy
-        )
+    model_config = ConfigDict(from_attributes=True)
 
 
 class UpdateSNote(BaseModel):
@@ -27,7 +24,4 @@ class SuccessCreate(BaseModel):
     priority: int = Field(1, ge=1, le=10)
     category_name: str = Field(min_length=3, max_length=50)
 
-    class Config:
-        from_attributes = (
-            True  # Позволяет Pydantic легко дружить с объектами SQLAlchemy
-        )
+    model_config = ConfigDict(from_attributes=True)

@@ -1,6 +1,6 @@
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey
 from sqlalchemy.orm import relationship
-import datetime
+from datetime import timezone, datetime
 from database import Base, engine
 
 
@@ -20,12 +20,13 @@ class SuccessDB(Base):
     header = Column(String)
     description = Column(String)
     priority = Column(Integer)
-    creation_date = Column(DateTime, default=datetime.datetime.utcnow)
+    creation_date = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     category_id = Column(Integer, ForeignKey("categories.id"))
     owner_id = Column(Integer, ForeignKey("users.id"))
 
     category = relationship("CategoryDB", back_populates="notes")
     owner = relationship("UserDB", back_populates="notes")
+
 
 class UserDB(Base):
     __tablename__ = "users"
