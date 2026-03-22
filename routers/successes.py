@@ -1,11 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException
 import math
-from sqlalchemy import desc
+from sqlalchemy import desc, func
 from sqlalchemy.orm import Session
 from database import get_db
 from models.models import SuccessDB, CategoryDB, UserDB
 from auth.auth_utils import get_current_user
-from schemas import SuccessNote, UpdateSNote, SuccessCreate
+from schemas import SuccessNote, UpdateSNote, SuccessCreate,CategoryStat
 
 router = APIRouter(prefix="/successes", tags=["Successes"])
 
@@ -45,8 +45,21 @@ async def create_note(
     db.commit()
     db.refresh(new_entry)
 
-    return {"status": "Saved to DB", "id": new_entry.id}
+    return new_entry
 
+
+@router.get("/get_stats", response_model=list[CategoryStat])
+async def get_stats(
+    db: Session = Depends(get_db), current_user: UserDB = Depends(get_current_user)
+):
+    stats = (
+        db.query(CategoryDB.category_name, func.count(SuccessDB.id).label("count"))
+        .join(SuccessDB)
+        .filter(SuccessDB.owner_id == current_user.id)
+        .group_by(CategoryDB.category_name)
+        .all()
+    )
+    return [{"category":i[0], "count":i[1]} for i in stats] 
 
 @router.get("/success/{note_id}")
 async def read_note(
@@ -95,6 +108,7 @@ async def read_notes_by_page(
     notes = (
         db.query(SuccessDB)
         .filter(SuccessDB.owner_id == current_user.id)
+        .order_by(desc(SuccessDB.creation_date))
         .offset(skip)
         .limit(lim)
         .all()
@@ -140,7 +154,7 @@ async def update_success(
         raise HTTPException(
             status_code=403, detail="У текущего пользователя нет такой заметки"
         )
-    db_note.title = note.title
+    db_note.header = note.header
     db_note.description = note.description
     db_note.priority = note.priority
     db.commit()
@@ -182,7 +196,7 @@ async def filter_successes(
     notes = (
         db.query(SuccessDB)
         .filter(
-            SuccessDB.title.icontains(search_query),
+            SuccessDB.header.icontains(search_query),
             current_user.id == SuccessDB.owner_id,
         )
         .all()
@@ -191,6 +205,7 @@ async def filter_successes(
         return {
             "status": "OK",
             "message": f"По ключевому слову '{search_query}' не найдено записей.",
+            "data":[]
         }
     else:
         return notes

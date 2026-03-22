@@ -4,6 +4,7 @@ from sqlalchemy import desc, func
 from sqlalchemy.orm import Session
 from auth.router import router as auth_router
 from routers.successes import router as successes_router
+from routers.categories import router as cat_router
 from database import SessionLocal, get_db, engine,Base
 from models.models import  SuccessDB, CategoryDB ,create_tables, UserDB
 from schemas import SuccessNote, CategoryNote, UpdateSNote
@@ -13,13 +14,15 @@ from schemas import SuccessNote, CategoryNote, UpdateSNote
 
 @asynccontextmanager
 async def lifespan(app:FastAPI):
-    create_tables()
+    #create_tables()
     yield
 
 app = FastAPI(lifespan=lifespan)
 
 app.include_router(auth_router)
 app.include_router(successes_router)
+app.include_router(cat_router)
+
 
 
 

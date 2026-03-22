@@ -6,3 +6,18 @@ class CategoryNote(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+
+class CategoryStat(BaseModel):
+    category: str
+    count: int
+
+
+class CategoryOut(BaseModel):
+    id: int
+    category_name: str
+    description: str | None = None
+
+    class Config:
+        from_attributes = True
