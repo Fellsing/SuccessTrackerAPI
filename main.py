@@ -17,7 +17,7 @@ async def lifespan(app:FastAPI):
     #create_tables()
     yield
 
-app = FastAPI(lifespan=lifespan)
+app = FastAPI(lifespan=lifespan, title="Success Tracker API", description="API для отслеживания личных достижений и категорий успеха", version='1.0.0', contact={"name": "Tamir", "url":"https://github.com/Fellsing/SuccessTrackerAPI"})
 
 app.include_router(auth_router)
 app.include_router(successes_router)
@@ -26,13 +26,6 @@ app.include_router(cat_router)
 
 
 
-@app.post("/categories")
-async def add_category(nte:CategoryNote, db:Session = Depends(get_db)):
-    db_note = CategoryDB(category_name=nte.category_name)
-    db.add(db_note)
-    db.commit()
-    db.refresh(db_note)
-    return {"status": "Saved to DB", "id": db_note.id}
 
 @app.get("/")
 async def root():

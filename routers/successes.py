@@ -10,7 +10,7 @@ from schemas import SuccessNote, UpdateSNote, SuccessCreate,CategoryStat
 router = APIRouter(prefix="/successes", tags=["Successes"])
 
 
-@router.post("/add_success")
+@router.post("/add_success", summary="Создать новый успех")
 async def create_note(
     note: SuccessCreate,
     db: Session = Depends(get_db),
@@ -48,7 +48,7 @@ async def create_note(
     return new_entry
 
 
-@router.get("/get_stats", response_model=list[CategoryStat])
+@router.get("/get_stats", response_model=list[CategoryStat], summary="Вывести статистику", description="Выводит статистику по количеству успехов, принадлежащим к каждой категории авторизованному пользователю")
 async def get_stats(
     db: Session = Depends(get_db), current_user: UserDB = Depends(get_current_user)
 ):
@@ -61,7 +61,7 @@ async def get_stats(
     )
     return [{"category":i[0], "count":i[1]} for i in stats] 
 
-@router.get("/success/{note_id}")
+@router.get("/success/{note_id}",summary="Вывести успех по Id", description="Выводит успех по Id, принадлежащий авторизованному пользователю")
 async def read_note(
     note_id: int,
     db: Session = Depends(get_db),
@@ -77,7 +77,7 @@ async def read_note(
     return db_note
 
 
-@router.get("/get_successes")
+@router.get("/get_successes",summary="Вывести все успехи", description="Выводит все успехи, принадлежащие авторизованному пользователю")
 async def read_notes(
     db: Session = Depends(get_db), current_user: UserDB = Depends(get_current_user)
 ):
@@ -91,7 +91,7 @@ async def read_notes(
     return notes
 
 
-@router.get("/get_successes_pagination")
+@router.get("/get_successes_pagination",summary="Вывести успехи c пагинацией", description="Выводит все успехи, принадлежащие авторизованному пользователю, с учетом пагинации")
 async def read_notes_by_page(
     page: int = 1,
     lim: int = 3,
@@ -121,7 +121,7 @@ async def read_notes_by_page(
     }
 
 
-@router.delete("/delete_successes/{note_id}")
+@router.delete("/delete_successes/{note_id}",summary="Удалить успех по ИД")
 async def delete_note(
     note_id: int,
     db: Session = Depends(get_db),
@@ -140,7 +140,7 @@ async def delete_note(
 
 
 # изменение всех данных в заметке(кроме ИД, разумеется)
-@router.put("/update_successes/{note_id}", response_model=UpdateSNote)
+@router.put("/update_successes/{note_id}", response_model=UpdateSNote,summary="Изменение всех данных в заметке", description="Изменение всех данных в заметке. Все поля обязательны к заполнению")
 async def update_success(
     note_id: int,
     note: SuccessNote,
@@ -163,7 +163,7 @@ async def update_success(
 
 
 # изменение только тех полей, которые буду внесены (кроме ИД, разумеется)
-@router.patch("/success/patched_update/{id}", response_model=UpdateSNote)
+@router.patch("/success/patched_update/{id}", response_model=UpdateSNote, summary="Изменение части данных в заметке", description="Изменение части данных в заметке. В частности изменение всех доступных полей")
 async def newUpdate(
     id: int,
     note: UpdateSNote,
@@ -187,7 +187,7 @@ async def newUpdate(
 
 
 # поиск заметки по названию заголовка
-@router.get("/successess/search/")
+@router.get("/successess/search/", summary="Поиск по заголовку", description="Поиск ключевой строки в названии заголовка и вывод записей")
 async def filter_successes(
     search_query: str,
     db: Session = Depends(get_db),
