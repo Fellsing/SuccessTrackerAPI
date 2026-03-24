@@ -1,42 +1,126 @@
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, Request, Form
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+from fastapi.responses import HTMLResponse, RedirectResponse
+
 from contextlib import asynccontextmanager
 from sqlalchemy import desc, func
 from sqlalchemy.orm import Session
+from auth.auth_utils import get_user_id_from_cookie 
 from auth.router import router as auth_router
 from routers.successes import router as successes_router
 from routers.categories import router as cat_router
-from database import SessionLocal, get_db, engine,Base
-from models.models import  SuccessDB, CategoryDB ,create_tables, UserDB
+from database import SessionLocal, get_db, engine, Base
+from models.models import SuccessDB, CategoryDB, create_tables, UserDB
 from schemas import SuccessNote, CategoryNote, UpdateSNote
 
 
-
-
 @asynccontextmanager
-async def lifespan(app:FastAPI):
-    #create_tables()
+async def lifespan(app: FastAPI):
+    # create_tables()
     yield
 
-app = FastAPI(lifespan=lifespan, title="Success Tracker API", description="API для отслеживания личных достижений и категорий успеха", version='1.0.0', contact={"name": "Tamir", "url":"https://github.com/Fellsing/SuccessTrackerAPI"})
+
+app = FastAPI(
+    lifespan=lifespan,
+    title="Success Tracker API",
+    description="API для отслеживания личных достижений и категорий успеха",
+    version="1.0.0",
+    contact={"name": "Tamir", "url": "https://github.com/Fellsing/SuccessTrackerAPI"},
+)
 
 app.include_router(auth_router)
 app.include_router(successes_router)
 app.include_router(cat_router)
 
 
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+templates = Jinja2Templates(directory="templates")
 
 
 
-@app.get("/")
-async def root():
-    return {"message": "Привет! Твой сервер FastAPI запущен и работает"}
+
+
+@app.get("/", response_class=HTMLResponse)
+async def root(request: Request, db: Session = Depends(get_db)):
+    user_id = get_user_id_from_cookie(request, db)
+    if not user_id:
+        return templates.TemplateResponse("index.html", {"request": request, "notes": [], "stats": [], "user_id": "Войдите в систему"}) 
+    notes = db.query(SuccessDB).filter(SuccessDB.owner_id==user_id).order_by(SuccessDB.creation_date.desc()).all()
+    
+    stats = (
+        db.query(
+            CategoryDB.category_name.label("category"),
+            func.count(SuccessDB.id).label("count"),
+        )
+        .join(SuccessDB)
+        .filter(SuccessDB.owner_id == user_id)
+        .group_by(CategoryDB.category_name)
+        .all()
+    )
+    avatar_path = db.query(UserDB).filter(UserDB.id==user_id).first().avatar_path
+    return templates.TemplateResponse(
+        "index.html", 
+        {"request": request, "notes": notes, "stats": stats, "user_id":user_id, "avatar_path":avatar_path}
+    )
+
+@app.get("/login", response_class=HTMLResponse)
+async def login_page(request: Request):
+    return templates.TemplateResponse("login.html", {"request": request})
+
+@app.get("/logout")
+async def logout():
+    response = RedirectResponse(url="/", status_code=302)
+    response.delete_cookie("access_token") # Стираем "печеньку"
+    return response
+@app.get("/signup", response_class=HTMLResponse)
+async def signup_page(request: Request):
+    # Просто отдаем файл шаблона
+    return templates.TemplateResponse("signup.html", {"request": request})
 
 @app.get("/successes/average_priority")
-async def read_average(db:Session=Depends(get_db)):
+async def read_average(db: Session = Depends(get_db)):
     note = db.query(func.avg(SuccessDB.priority)).scalar()
-    return {"average_priority":round(note,2) if note else 0}
+    return {"average_priority": round(note, 2) if note else 0}
+
 
 @app.get("/successess/filter/")
-async def filter_successes(min_value:int =5, db:Session =Depends(get_db)):
-    notes = db.query(SuccessDB).filter(SuccessDB.priority<=min_value).all()
+async def filter_successes(min_value: int = 5, db: Session = Depends(get_db)):
+    notes = db.query(SuccessDB).filter(SuccessDB.priority <= min_value).all()
     return notes
+
+
+@app.post("/add_success_web")
+async def add_success_web(
+    header: str = Form(...),
+    description: str = Form(None),
+    priority: int = Form(...),
+    category_name: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    category_name_clean = category_name.strip().capitalize()
+    category = (
+        db.query(CategoryDB)
+        .filter(CategoryDB.category_name == category_name_clean)
+        .first()
+    )
+
+    if not category:
+        category = CategoryDB(category_name=category_name_clean)
+        db.add(category)
+        db.commit()
+        db.refresh(category)
+
+    new_entry = SuccessDB(
+        header=header,
+        description=description,
+        priority=priority,
+        category_id=category.id,
+        owner_id=2,
+    )
+
+    db.add(new_entry)
+    db.commit()
+
+    return RedirectResponse(url="/", status_code=303)

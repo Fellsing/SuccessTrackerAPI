@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from database import get_db
 from models.models import SuccessDB, CategoryDB, UserDB
 from auth.auth_utils import get_current_user
-from schemas import SuccessNote, UpdateSNote, SuccessCreate,CategoryStat
+from schemas import SuccessNote, UpdateSNote, SuccessCreate, CategoryStat
 
 router = APIRouter(prefix="/successes", tags=["Successes"])
 
@@ -18,12 +18,12 @@ async def create_note(
 ):
     category = (
         db.query(CategoryDB)
-        .filter(CategoryDB.category_name == note.category_name)
+        .filter(CategoryDB.category_name == note.category_name.strip().capitalize())
         .first()
     )
     # Если нет категории, то добавляем ее
     if not category:
-        category = CategoryDB(category_name=note.category_name)
+        category = CategoryDB(category_name=note.category_name.strip().capitalize())
         db.add(category)
         db.commit()
         db.refresh(category)
@@ -48,20 +48,33 @@ async def create_note(
     return new_entry
 
 
-@router.get("/get_stats", response_model=list[CategoryStat], summary="Вывести статистику", description="Выводит статистику по количеству успехов, принадлежащим к каждой категории авторизованному пользователю")
+@router.get(
+    "/get_stats",
+    response_model=list[CategoryStat],
+    summary="Вывести статистику",
+    description="Выводит статистику по количеству успехов, принадлежащим к каждой категории авторизованному пользователю",
+)
 async def get_stats(
     db: Session = Depends(get_db), current_user: UserDB = Depends(get_current_user)
 ):
     stats = (
-        db.query(CategoryDB.category_name, func.count(SuccessDB.id).label("count"))
+        db.query(
+            CategoryDB.category_name.label("category"),
+            func.count(SuccessDB.id).label("count"),
+        )
         .join(SuccessDB)
         .filter(SuccessDB.owner_id == current_user.id)
         .group_by(CategoryDB.category_name)
         .all()
     )
-    return [{"category":i[0], "count":i[1]} for i in stats] 
+    return stats
 
-@router.get("/success/{note_id}",summary="Вывести успех по Id", description="Выводит успех по Id, принадлежащий авторизованному пользователю")
+
+@router.get(
+    "/success/{note_id}",
+    summary="Вывести успех по Id",
+    description="Выводит успех по Id, принадлежащий авторизованному пользователю",
+)
 async def read_note(
     note_id: int,
     db: Session = Depends(get_db),
@@ -77,7 +90,11 @@ async def read_note(
     return db_note
 
 
-@router.get("/get_successes",summary="Вывести все успехи", description="Выводит все успехи, принадлежащие авторизованному пользователю")
+@router.get(
+    "/get_successes",
+    summary="Вывести все успехи",
+    description="Выводит все успехи, принадлежащие авторизованному пользователю",
+)
 async def read_notes(
     db: Session = Depends(get_db), current_user: UserDB = Depends(get_current_user)
 ):
@@ -91,7 +108,11 @@ async def read_notes(
     return notes
 
 
-@router.get("/get_successes_pagination",summary="Вывести успехи c пагинацией", description="Выводит все успехи, принадлежащие авторизованному пользователю, с учетом пагинации")
+@router.get(
+    "/get_successes_pagination",
+    summary="Вывести успехи c пагинацией",
+    description="Выводит все успехи, принадлежащие авторизованному пользователю, с учетом пагинации",
+)
 async def read_notes_by_page(
     page: int = 1,
     lim: int = 3,
@@ -121,7 +142,7 @@ async def read_notes_by_page(
     }
 
 
-@router.delete("/delete_successes/{note_id}",summary="Удалить успех по ИД")
+@router.delete("/delete_successes/{note_id}", summary="Удалить успех по ИД")
 async def delete_note(
     note_id: int,
     db: Session = Depends(get_db),
@@ -140,7 +161,12 @@ async def delete_note(
 
 
 # изменение всех данных в заметке(кроме ИД, разумеется)
-@router.put("/update_successes/{note_id}", response_model=UpdateSNote,summary="Изменение всех данных в заметке", description="Изменение всех данных в заметке. Все поля обязательны к заполнению")
+@router.put(
+    "/update_successes/{note_id}",
+    response_model=UpdateSNote,
+    summary="Изменение всех данных в заметке",
+    description="Изменение всех данных в заметке. Все поля обязательны к заполнению",
+)
 async def update_success(
     note_id: int,
     note: SuccessNote,
@@ -163,7 +189,12 @@ async def update_success(
 
 
 # изменение только тех полей, которые буду внесены (кроме ИД, разумеется)
-@router.patch("/success/patched_update/{id}", response_model=UpdateSNote, summary="Изменение части данных в заметке", description="Изменение части данных в заметке. В частности изменение всех доступных полей")
+@router.patch(
+    "/success/patched_update/{id}",
+    response_model=UpdateSNote,
+    summary="Изменение части данных в заметке",
+    description="Изменение части данных в заметке. В частности изменение всех доступных полей",
+)
 async def newUpdate(
     id: int,
     note: UpdateSNote,
@@ -187,7 +218,11 @@ async def newUpdate(
 
 
 # поиск заметки по названию заголовка
-@router.get("/successess/search/", summary="Поиск по заголовку", description="Поиск ключевой строки в названии заголовка и вывод записей")
+@router.get(
+    "/successess/search/",
+    summary="Поиск по заголовку",
+    description="Поиск ключевой строки в названии заголовка и вывод записей",
+)
 async def filter_successes(
     search_query: str,
     db: Session = Depends(get_db),
@@ -205,7 +240,25 @@ async def filter_successes(
         return {
             "status": "OK",
             "message": f"По ключевому слову '{search_query}' не найдено записей.",
-            "data":[]
+            "data": [],
         }
     else:
         return notes
+
+
+@router.get("/by_category/{category_id}", summary="Вывод по заданной категории")
+async def by_category(
+    category_id: int,
+    db: Session = Depends(get_db),
+    current_user: UserDB = Depends(get_current_user),
+):
+    notes = (
+        db.query(SuccessDB)
+        .filter(
+            SuccessDB.owner_id == current_user.id, SuccessDB.category_id == category_id
+        )
+        .all()
+    )
+    if not notes:
+        raise HTTPException(status_code=404, detail="В этой категории нет записей")
+    return notes

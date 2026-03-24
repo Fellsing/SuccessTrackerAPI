@@ -4,9 +4,12 @@ import os
 from dotenv import load_dotenv 
 import datetime
 from datetime import timedelta, timezone, datetime
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2AuthorizationCodeBearer, OAuth2PasswordBearer
 from sqlalchemy.orm import Session
+
+
+from typing import Optional
 
 
 from database import get_db
@@ -54,3 +57,21 @@ def get_current_user(token: str = Depends(oauth2_scheme), db:Session = Depends(g
         return user
     except JWTError:
         raise credentials_exception
+    
+
+
+def get_user_id_from_cookie(request: Request, db:Session) -> Optional[int]:
+    token = request.cookies.get("access_token")
+    if not token:
+        return None
+    if token.startswith("Bearer "):
+        token = token.replace("Bearer ","")
+
+    try:
+        scheme, _, param = token.partition(" ")
+        payload = jwt.decode(param if param else scheme, SECRET_KEY, algorithms=[ALGORITHM])
+        username:str = payload.get("sub")
+        user = db.query(UserDB).filter(UserDB.username==username).first()
+        return int(user.id) if user else None
+    except(JWTError, ValueError):
+        return None

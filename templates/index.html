@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Success Insight</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <div class="flex items-center space-x-4">
+        <label class="cursor-pointer relative group">
+            {% if avatar_path %}
+            <img src="{{ avatar_path }}" id="avatar-preview"
+                class="w-12 h-12 rounded-2xl object-cover border-2 border-indigo-100 group-hover:border-indigo-500 transition-all">
+            {% else %}
+            <div
+                class="w-12 h-12 rounded-2xl bg-slate-200 flex items-center justify-center text-slate-500 font-bold group-hover:bg-slate-300 transition-all">
+                ?
+            </div>
+            {% endif %}
+            <input type="file" id="avatar-input" class="hidden" accept="image/*" onchange="uploadAvatar(this)">
+        </label>
+
+        <div class="flex flex-col">
+            <span class="text-xs font-bold text-slate-400 uppercase tracking-widest">Профиль</span>
+            <a href="/logout" class="text-xs font-bold text-red-400 hover:text-red-600 transition-colors">Выйти</a>
+        </div>
+    </div>
+
+    <script>
+        async function uploadAvatar(input) {
+            if (!input.files || !input.files[0]) return;
+
+            const formData = new FormData();
+            formData.append('file', input.files[0]);
+
+            const response = await fetch('/auth/upload_avatar', {
+                method: 'POST',
+                body: formData // Для файлов НЕ НУЖЕН JSON и заголовки, браузер сам все сделает
+            });
+
+            if (response.ok) {
+                window.location.reload(); // Перегружаем страницу, чтобы увидеть новую картинку
+            } else {
+                alert('Ошибка при загрузке аватара');
+            }
+        }
+    </script>
+    <div class="flex items-center space-x-4">
+        {% if user_id and user_id is number %}
+        <span class="text-sm font-medium text-slate-500">ID: {{ user_id }}</span>
+        <a href="/logout"
+            class="text-xs font-bold text-red-400 hover:text-red-600 uppercase tracking-wider transition-colors">Выйти</a>
+        {% else %}
+        <a href="/signup"
+            class="text-sm font-bold text-slate-400 hover:text-indigo-600 transition-colors">Регистрация</a>
+        <a href="/login"
+            class="bg-indigo-600 text-white px-6 py-2 rounded-full text-sm font-bold hover:bg-indigo-700 transition-all">Войти</a>
+        {% endif %}
+    </div>
+    <button onclick="deleteAccount()" class="text-red-500 hover:underline">Удалить аккаунт</button>
+
+<script>
+async function deleteAccount() {
+    if (!confirm("Вы уверены? Все ваши успехи и аватар будут удалены навсегда!")) return;
+
+    const response = await fetch('/auth/delete_account', { method: 'DELETE' });
+    if (response.ok) {
+        alert("Профиль удален");
+        window.location.href = "/signup"; // Отправляем на регистрацию
+    } else {
+        alert("Ошибка при удалении");
+    }
+}
+</script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+
+        .glass {
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(10px);
+        }
+    </style>
+</head>
+
+<body class="bg-slate-50 text-slate-900 antialiased">
+
+    <header class="sticky top-0 z-50 glass border-b border-slate-200">
+        <div class="max-w-6xl mx-auto px-4 py-4 flex justify-between items-center">
+            <h1 class="text-2xl font-black tracking-tighter text-indigo-600">SUCCESS<span
+                    class="text-slate-400">.</span></h1>
+            <div class="flex items-center space-x-4">
+                <span class="text-sm font-medium text-slate-500">User ID: {{ notes[0].owner_id if notes else "Гость"
+                    }}</span>
+                <div
+                    class="w-8 h-8 rounded-full bg-indigo-100 border border-indigo-200 flex items-center justify-center text-indigo-700 font-bold text-xs">
+                    U</div>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-6xl mx-auto px-4 py-8">
+
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-12">
+            {% for stat in stats %}
+            <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow">
+                <p class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">{{ stat.category }}</p>
+                <p class="text-3xl font-extrabold text-slate-800">{{ stat.count }}</p>
+                <div class="mt-2 w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
+                    <div class="bg-indigo-500 h-full transition-all duration-500"
+                        style="width: {{ [ (stat.count / 10) * 100, 100 ] | min }}%">
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <div class="flex flex-col lg:flex-row gap-8">
+            <div class="flex-1 order-2 lg:order-1">
+                <h2 class="text-xl font-bold mb-6 flex items-center">
+                    <span class="mr-2">✨</span> Последние достижения
+                </h2>
+                <div class="space-y-4">
+                    {% for note in notes %}
+                    <div
+                        class="bg-white p-6 rounded-3xl border border-slate-100 hover:border-indigo-200 transition-colors group">
+                        <div class="flex justify-between items-start mb-3">
+                            <div>
+                                <span
+                                    class="inline-block px-3 py-1 rounded-full bg-slate-100 text-[10px] font-bold text-slate-500 uppercase mb-2">
+                                    {{ note.category.category_name if note.category else "General" }}
+                                </span>
+                                <h3 class="text-lg font-bold group-hover:text-indigo-600 transition-colors">{{
+                                    note.header }}</h3>
+                            </div>
+                            <span class="text-xs font-medium text-slate-400">{{ note.creation_date.strftime('%H:%M, %d
+                                %b') }}</span>
+                        </div>
+                        <p class="text-slate-600 leading-relaxed mb-4">{{ note.description }}</p>
+                        <div class="flex items-center text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                            <span class="flex items-center">
+                                <svg class="w-4 h-4 mr-1 text-amber-400" fill="currentColor" viewBox="0 0 20 20">
+                                    <path
+                                        d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z">
+                                    </path>
+                                </svg>
+                                Priority {{ note.priority }}
+                            </span>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="w-full lg:w-96 order-1 lg:order-2">
+                <div class="sticky top-24 bg-indigo-600 p-8 rounded-[2rem] text-white shadow-xl shadow-indigo-200">
+                    <h2 class="text-2xl font-bold mb-6">Новая победа</h2>
+                    <form action="/add_success_web" method="post" class="space-y-4">
+                        <div>
+                            <input type="text" name="header" placeholder="Что произошло?"
+                                class="w-full bg-indigo-500/50 border-none rounded-2xl p-4 placeholder-indigo-200 focus:ring-2 focus:ring-white outline-none transition-all"
+                                required>
+                        </div>
+                        <div>
+                            <textarea name="description" placeholder="Детали..." rows="3"
+                                class="w-full bg-indigo-500/50 border-none rounded-2xl p-4 placeholder-indigo-200 focus:ring-2 focus:ring-white outline-none transition-all"></textarea>
+                        </div>
+                        <div class="grid grid-cols-2 gap-4">
+                            <input type="number" name="priority" placeholder="Приоритет" min="1" max="5"
+                                class="w-full bg-indigo-500/50 border-none rounded-2xl p-4 placeholder-indigo-200 focus:ring-2 focus:ring-white outline-none transition-all"
+                                required>
+                            <input type="text" name="category_name" placeholder="Категория"
+                                class="w-full bg-indigo-500/50 border-none rounded-2xl p-4 placeholder-indigo-200 focus:ring-2 focus:ring-white outline-none transition-all"
+                                required>
+                        </div>
+                        <button type="submit"
+                            class="w-full bg-white text-indigo-600 font-bold py-4 rounded-2xl hover:bg-indigo-50 transition-colors shadow-lg">
+                            Опубликовать
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </main>
+
+</body>
+
+</html>

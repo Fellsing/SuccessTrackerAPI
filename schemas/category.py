@@ -12,6 +12,7 @@ class CategoryStat(BaseModel):
     category: str
     count: int
 
+    model_config = ConfigDict(from_attributes=True)
 
 class CategoryOut(BaseModel):
     id: int
