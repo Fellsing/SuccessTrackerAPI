@@ -1,5 +1,8 @@
+from datetime import datetime
 import re
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+from schemas.category import CategoryNote
 
 
 class SuccessNote(BaseModel):
@@ -12,7 +15,7 @@ class SuccessNote(BaseModel):
 
 
 class UpdateSNote(BaseModel):
-    header: str | None = None
+    header: str | None = Field(None,min_length=2, max_length=100)
     description: str | None = Field(None, max_length=500)
     priority: int | None = Field(None, ge=1, le=10)
     category_id: int | None = Field(None, ge=1)
@@ -23,5 +26,18 @@ class SuccessCreate(BaseModel):
     description: str | None = Field(None, max_length=500)
     priority: int = Field(1, ge=1, le=10)
     category_name: str = Field(min_length=3, max_length=50)
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+
+class SuccessRead(BaseModel):
+    id: int
+    owner_id: int
+    creation_date: datetime
+    header: str = Field(min_length=2, max_length=100)
+    description: str | None = Field(None, max_length=500)
+    priority: int = Field( ge=1, le=10)
+    category: CategoryNote |None = None
 
     model_config = ConfigDict(from_attributes=True)

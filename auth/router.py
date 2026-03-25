@@ -41,7 +41,7 @@ def create_user(user_data: UserNote, db: Session = Depends(get_db)):
 
 
 @router.post("/signin", status_code=status.HTTP_202_ACCEPTED, summary="Вход в систему")
-def login_user(user_data: UserNote, db: Session = Depends(get_db)):
+def login_user(user_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     check_user = db.query(UserDB).filter(UserDB.username == user_data.username).first()
     if not check_user or not verify_password(
         user_data.password, check_user.hashed_pass

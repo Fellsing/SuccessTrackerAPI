@@ -6,6 +6,7 @@ from database import get_db
 from models.models import SuccessDB, CategoryDB, UserDB
 from auth.auth_utils import get_current_user
 from schemas import SuccessNote, UpdateSNote, SuccessCreate, CategoryStat
+from schemas.success import SuccessRead
 
 router = APIRouter(prefix="/successes", tags=["Successes"])
 
@@ -94,6 +95,7 @@ async def read_note(
     "/get_successes",
     summary="Вывести все успехи",
     description="Выводит все успехи, принадлежащие авторизованному пользователю",
+    response_model=list[SuccessRead]
 )
 async def read_notes(
     db: Session = Depends(get_db), current_user: UserDB = Depends(get_current_user)
