@@ -1,8 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 import math
+from pydantic import Field
 from sqlalchemy import desc, func
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from database import get_db
+from models.crud import create_success_note, delete_success, update_success_note
 from models.models import SuccessDB, CategoryDB, UserDB
 from auth.auth_utils import get_current_user
 from schemas import SuccessNote, UpdateSNote, SuccessCreate, CategoryStat
@@ -17,36 +19,8 @@ async def create_note(
     db: Session = Depends(get_db),
     current_user: UserDB = Depends(get_current_user),
 ):
-    category = (
-        db.query(CategoryDB)
-        .filter(CategoryDB.category_name == note.category_name.strip().capitalize())
-        .first()
-    )
-    # Если нет категории, то добавляем ее
-    if not category:
-        category = CategoryDB(category_name=note.category_name.strip().capitalize())
-        db.add(category)
-        db.commit()
-        db.refresh(category)
-    note_data = note.model_dump(exclude={"category_name"})
-    # Создаем объект для базы на основе полученных данных
-    new_entry = SuccessDB(
-        **note_data, category_id=category.id, owner_id=current_user.id
-    )
-    if (
-        db.query(SuccessDB)
-        .filter(
-            SuccessDB.header == new_entry.header, SuccessDB.owner_id == current_user.id
-        )
-        .first()
-    ):
-        raise HTTPException(status_code=400, detail="Ты это уже делал!!!")
-    # 2. Добавляем и сохраняем
-    db.add(new_entry)
-    db.commit()
-    db.refresh(new_entry)
-
-    return new_entry
+    return create_success_note(db,note,current_user.id)
+    
 
 
 @router.get(
@@ -63,8 +37,7 @@ async def get_stats(
             CategoryDB.category_name.label("category"),
             func.count(SuccessDB.id).label("count"),
         )
-        .join(SuccessDB)
-        .filter(SuccessDB.owner_id == current_user.id)
+        .outerjoin(SuccessDB, (SuccessDB.category_id == CategoryDB.id) & (SuccessDB.owner_id == current_user.id))
         .group_by(CategoryDB.category_name)
         .all()
     )
@@ -116,8 +89,8 @@ async def read_notes(
     description="Выводит все успехи, принадлежащие авторизованному пользователю, с учетом пагинации",
 )
 async def read_notes_by_page(
-    page: int = 1,
-    lim: int = 3,
+    page: int = Query(1,ge=1),
+    lim: int = Query(3, ge=1, le=100),
     db: Session = Depends(get_db),
     current_user: UserDB = Depends(get_current_user),
 ):
@@ -130,6 +103,7 @@ async def read_notes_by_page(
 
     notes = (
         db.query(SuccessDB)
+        .options(joinedload(SuccessDB.category))
         .filter(SuccessDB.owner_id == current_user.id)
         .order_by(desc(SuccessDB.creation_date))
         .offset(skip)
@@ -150,16 +124,7 @@ async def delete_note(
     db: Session = Depends(get_db),
     current_user: UserDB = Depends(get_current_user),
 ):
-    db_note = db.query(SuccessDB).filter(SuccessDB.id == note_id).first()
-    if not db_note:
-        raise HTTPException(status_code=400, detail="Такой записи не существует!")
-    if db_note.owner_id != current_user.id:
-        raise HTTPException(
-            status_code=403, detail="У текущего пользователя нет такой заметки"
-        )
-    db.delete(db_note)
-    db.commit()
-    return {"status": "Deleted from DB", "id": db_note.id}
+    return delete_success(db=db, user_id=current_user.id, success_id=note_id)
 
 
 # изменение всех данных в заметке(кроме ИД, разумеется)
@@ -171,23 +136,11 @@ async def delete_note(
 )
 async def update_success(
     note_id: int,
-    note: SuccessNote,
+    note: UpdateSNote,
     db: Session = Depends(get_db),
     current_user: UserDB = Depends(get_current_user),
 ):
-    db_note = db.query(SuccessDB).filter(SuccessDB.id == note_id).first()
-    if not db_note:
-        raise HTTPException(status_code=400, detail="Такой записи не существует!")
-    if db_note.owner_id != current_user.id:
-        raise HTTPException(
-            status_code=403, detail="У текущего пользователя нет такой заметки"
-        )
-    db_note.header = note.header
-    db_note.description = note.description
-    db_note.priority = note.priority
-    db.commit()
-    db.refresh(db_note)
-    return {"status": "Updated", "data": db_note}
+    return update_success_note(db,current_user.id,note_id,note)
 
 
 # изменение только тех полей, которые буду внесены (кроме ИД, разумеется)

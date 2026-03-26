@@ -1,11 +1,14 @@
+import time
+
 from fastapi import FastAPI, Depends, HTTPException, Request, Form
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 
 from contextlib import asynccontextmanager
 from sqlalchemy import desc, func
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import SQLAlchemyError
 from auth.auth_utils import get_user_id_from_cookie 
 from auth.router import router as auth_router
 from routers.successes import router as successes_router
@@ -38,8 +41,22 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 
 templates = Jinja2Templates(directory="templates")
 
+@app.middleware("http")
+async def add_process_time_header(request: Request, call_next):
+    start_time = time.perf_counter() 
+    
+    response = await call_next(request) 
+    
+    process_time = time.perf_counter() - start_time 
+    
+    response.headers["X-Process-Time"] = str(process_time)
+    
+    return response
 
 
+@app.exception_handler(SQLAlchemyError)
+async def sqlalchemy_exception_handler(exc: SQLAlchemyError, request: Request):
+    return JSONResponse(status_code=500, content={"detail": "Ошибка базы данных. Попробуйте позже или свяжитесь с поддержкой."})
 
 
 @app.get("/", response_class=HTMLResponse)
