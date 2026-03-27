@@ -1,9 +1,14 @@
+import os
 import time
+from jose import jwt, JWTError
 
+from auth.auth_utils import SECRET_KEY, ALGORITHM
 from fastapi import FastAPI, Depends, HTTPException, Request, Form
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+
+from loguru import logger
 
 from contextlib import asynccontextmanager
 from sqlalchemy import desc, func
@@ -41,21 +46,45 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 
 templates = Jinja2Templates(directory="templates")
 
+LOG_DIR = "logs"
+if not os.path.exists(LOG_DIR):
+    os.makedirs(LOG_DIR)
+
+logger.add(os.path.join(LOG_DIR, "app.log"), serialize=True, rotation="10 MB", retention="30 days", level="INFO", compression="zip")
+
+
 @app.middleware("http")
 async def add_process_time_header(request: Request, call_next):
     start_time = time.perf_counter() 
+    user_identity = "Anon"
+    auth_header = request.headers.get("Authorization")
+    if auth_header and auth_header.startswith("Bearer "):
+        try:
+            token = auth_header.split()[-1]
+            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+            user_identity = payload.get("sub")
+        except JWTError:
+            user_identity = "Invalid token"
     
+
     response = await call_next(request) 
     
     process_time = time.perf_counter() - start_time 
     
     response.headers["X-Process-Time"] = str(process_time)
+
+    log_msg = f"User {user_identity} | {request.method} | {request.url.path} | Time: {process_time:.4f}s"
+    if process_time > 0.5:
+        logger.warning(f"Slow request: {log_msg}")
+    else:
+        logger.info(f"{log_msg}")
     
     return response
 
 
 @app.exception_handler(SQLAlchemyError)
 async def sqlalchemy_exception_handler(exc: SQLAlchemyError, request: Request):
+    logger.exception(f"Database error at {request.url.path}")
     return JSONResponse(status_code=500, content={"detail": "Ошибка базы данных. Попробуйте позже или свяжитесь с поддержкой."})
 
 
