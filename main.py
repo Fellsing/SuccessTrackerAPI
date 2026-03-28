@@ -118,11 +118,10 @@ async def login_page(request: Request):
 @app.get("/logout")
 async def logout():
     response = RedirectResponse(url="/", status_code=302)
-    response.delete_cookie("access_token") # Стираем "печеньку"
+    response.delete_cookie("access_token") 
     return response
 @app.get("/signup", response_class=HTMLResponse)
 async def signup_page(request: Request):
-    # Просто отдаем файл шаблона
     return templates.TemplateResponse("signup.html", {"request": request})
 
 @app.get("/successes/average_priority")

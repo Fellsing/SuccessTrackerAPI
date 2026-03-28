@@ -26,5 +26,5 @@ async def add_category(nte:CategoryNote, db:Session = Depends(get_db)):
     db.add(db_note)
     db.commit()
     db.refresh(db_note)
-    return {"status": "Saved to DB", "id": db_note.id}
+    return db_note
 

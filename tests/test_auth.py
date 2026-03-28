@@ -16,7 +16,7 @@ def test_register_user(client):
 def test_login_user(client):
     client.post("/auth/signup", json={"username":"testuserr", "password":"Testpassword1!"})
     response = client.post("/auth/signin", data={"username":"testuserr", "password":"Testpassword1!"})
-    assert response.status_code==202
+    assert response.status_code==200
     assert "access_token" in response.json()
     assert response.json()["token_type"]=="bearer"
 
