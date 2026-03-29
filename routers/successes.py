@@ -1,5 +1,9 @@
+import io
+import os
 from fastapi import APIRouter, Depends, HTTPException, Query
 import math
+from fastapi.responses import StreamingResponse
+import pandas as pd
 from pydantic import Field
 from sqlalchemy import desc, func
 from sqlalchemy.orm import Session, joinedload
@@ -10,7 +14,22 @@ from auth.auth_utils import get_current_user
 from schemas import SuccessNote, UpdateSNote, SuccessCreate, CategoryStat
 from schemas.success import SuccessRead
 
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import A4
+
 router = APIRouter(prefix="/successes", tags=["Successes"])
+
+
+FONT_PATH = os.path.join(os.getcwd(), "fonts", "TIMES.TTF")
+# Регистрация шрифта
+try:
+    pdfmetrics.registerFont(TTFont('TIMES', FONT_PATH))
+except Exception as e:
+    # Если шрифт не найден, логгируем ошибку, но не даем приложению упасть
+    print(f"Font registration failed: {e}")
+
 
 
 @router.post("/add_success", summary="Создать новый успех")
@@ -19,8 +38,7 @@ async def create_note(
     db: Session = Depends(get_db),
     current_user: UserDB = Depends(get_current_user),
 ):
-    return create_success_note(db,note,current_user.id)
-    
+    return create_success_note(db, note, current_user.id)
 
 
 @router.get(
@@ -37,7 +55,11 @@ async def get_stats(
             CategoryDB.category_name.label("category"),
             func.count(SuccessDB.id).label("count"),
         )
-        .outerjoin(SuccessDB, (SuccessDB.category_id == CategoryDB.id) & (SuccessDB.owner_id == current_user.id))
+        .outerjoin(
+            SuccessDB,
+            (SuccessDB.category_id == CategoryDB.id)
+            & (SuccessDB.owner_id == current_user.id),
+        )
         .group_by(CategoryDB.category_name)
         .all()
     )
@@ -68,7 +90,7 @@ async def read_note(
     "/get_successes",
     summary="Вывести все успехи",
     description="Выводит все успехи, принадлежащие авторизованному пользователю",
-    response_model=list[SuccessRead]
+    response_model=list[SuccessRead],
 )
 async def read_notes(
     db: Session = Depends(get_db), current_user: UserDB = Depends(get_current_user)
@@ -89,7 +111,7 @@ async def read_notes(
     description="Выводит все успехи, принадлежащие авторизованному пользователю, с учетом пагинации",
 )
 async def read_notes_by_page(
-    page: int = Query(1,ge=1),
+    page: int = Query(1, ge=1),
     lim: int = Query(3, ge=1, le=100),
     db: Session = Depends(get_db),
     current_user: UserDB = Depends(get_current_user),
@@ -140,7 +162,7 @@ async def update_success(
     db: Session = Depends(get_db),
     current_user: UserDB = Depends(get_current_user),
 ):
-    return update_success_note(db,current_user.id,note_id,note)
+    return update_success_note(db, current_user.id, note_id, note)
 
 
 # изменение только тех полей, которые буду внесены (кроме ИД, разумеется)
@@ -217,3 +239,81 @@ async def by_category(
     if not notes:
         raise HTTPException(status_code=404, detail="В этой категории нет записей")
     return notes
+
+
+@router.get("/export/csv")
+async def export_to_csv(db: Session = Depends(get_db), user=Depends(get_current_user)):
+    successes = db.query(SuccessDB).filter(SuccessDB.owner_id == user.id).all()
+    
+
+    data = [
+        {
+            "Header": i.header,
+            "Description":i.description,
+            "Category": i.category.category_name,
+            "Date": i.creation_date,
+        }
+        for i in successes
+    ]
+    df = pd.DataFrame(data)
+    csv_str = df.to_csv(index=False, encoding='utf-8', sep=';')
+    csv_bytes = csv_str.encode('utf-8')
+
+    bom = b'\xef\xbb\xbf'
+    final_content = bom + csv_bytes
+    return StreamingResponse(
+        io.BytesIO(final_content),
+        media_type="text/csv",
+        headers={"Content_Disposition": "attachment; filename=my_successes.csv"},
+    )
+
+
+
+
+@router.get("/export/pdf")
+async def export_to_pdf(db: Session = Depends(get_db), user = Depends(get_current_user)):
+    # 1. Получаем данные
+    successes = db.query(SuccessDB).filter(SuccessDB.owner_id == user.id).all()
+    
+    # 2. Создаем байтовый буфер в памяти (io.BytesIO)
+    buffer = io.BytesIO()
+    
+    # 3. Начинаем "рисовать" на холсте (Canvas) формата A4
+    p = canvas.Canvas(buffer, pagesize=A4)
+    width, height = A4
+    
+    # Устанавливаем шрифт для заголовка
+    p.setFont("TIMES", 16)
+    p.drawString(100, height - 50, f"Отчет об успехах пользователя: {user.username}")
+    
+    # Рисуем линию под заголовком
+    p.line(100, height - 60, width - 100, height - 60)
+    
+    # Устанавливаем шрифт для основного текста
+    p.setFont("TIMES", 12)
+    y_position = height - 100
+    
+    for idx, item in enumerate(successes, 1):
+        # Проверка на заполнение страницы
+        if y_position < 100:
+            p.showPage()  # Создаем новую страницу
+            p.setFont("TIMES", 12)
+            y_position = height - 50
+            
+        date_str = item.creation_date.strftime("%d.%m.%Y") if item.creation_date else "---"
+        text = f"{idx}. [{date_str}] {item.header} — Категория: {item.category.category_name}"
+        
+        p.drawString(100, y_position, text)
+        y_position -= 25 # Смещение вниз для следующей строки
+        
+    # 4. Завершаем PDF
+    p.showPage()
+    p.save()
+    
+    # 5. Возвращаем поток
+    buffer.seek(0)
+    return StreamingResponse(
+        buffer, 
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename=success_report.pdf"}
+    )
