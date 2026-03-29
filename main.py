@@ -81,6 +81,9 @@ async def add_process_time_header(request: Request, call_next):
     
     return response
 
+@app.exception_handler(ValueError)
+async def valueError_exception_handler(exc: ValueError, request:Request):
+    return JSONResponse(status_code=422, content={"Status":"Error", "message":"Ошибка валидации данных", "details": exc.errors()},)
 
 @app.exception_handler(SQLAlchemyError)
 async def sqlalchemy_exception_handler(exc: SQLAlchemyError, request: Request):

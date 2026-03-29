@@ -3,7 +3,18 @@ from sqlalchemy.orm import Session
 
 from models.models import CategoryDB, SuccessDB
 from schemas.success import SuccessCreate, SuccessNote, UpdateSNote
+from schemas.category import CategoryNote
 
+
+def create_category_note(db:Session, note:CategoryNote):
+    db_note = CategoryDB(**note.model_dump())
+    db.add(db_note)
+    db.commit()
+    db.refresh(db_note)
+    return db_note
+
+def get_category_by_name(db:Session, name:str):
+    return db.query(CategoryDB).filter(CategoryDB.category_name==name).first()
 
 
 def create_success_note(db:Session, note:SuccessCreate, user_id: int):

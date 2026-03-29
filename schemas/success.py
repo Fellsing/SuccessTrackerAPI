@@ -11,10 +11,19 @@ class SuccessNote(BaseModel):
     priority: int = Field(1, ge=1, le=10)
     category_id: int = Field(1, ge=1, le=99)
 
+    @field_validator("header")
+    @classmethod
+    def header_validation(cls, header:str|None)->str|None:
+        if header is None:
+            return header
+        header = header.strip().capitalize()
+        if not re.match(r"^[a-zA-Zа-яА-Я0-9\s\.\,\-\:]+$", header):
+            raise ValueError("Заголовок должен содержать только буквенные символы, пробелы, знаки препинания")
+        return header
     model_config = ConfigDict(from_attributes=True)
 
 
-class UpdateSNote(BaseModel):
+class UpdateSNote(SuccessNote):
     header: str | None = Field(None,min_length=2, max_length=100)
     description: str | None = Field(None, max_length=500)
     priority: int | None = Field(None, ge=1, le=10)
