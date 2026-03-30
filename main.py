@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
 from auth.auth_utils import get_user_id_from_cookie
 from auth.router import router as auth_router
+from core.celery_config import send_welcome_email
 from routers.successes import router as successes_router
 from routers.categories import router as cat_router
 from database import SessionLocal, get_db, engine, Base
@@ -216,3 +217,10 @@ async def add_success_web(
     db.commit()
 
     return RedirectResponse(url="/", status_code=303)
+
+
+
+@app.get("/test-celery")
+async def test_celery(email: str = "test@example.com"):
+    send_welcome_email.delay(email)
+    return {"status": "Задача ушла в фон. Чек логи воркера через 10 секунд"}

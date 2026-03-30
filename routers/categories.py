@@ -1,7 +1,9 @@
+import json
 from fastapi import APIRouter, Depends, HTTPException
 import math
 from sqlalchemy import desc, func
 from sqlalchemy.orm import Session
+from core.redis_config import get_redis
 from database import get_db
 from models.models import SuccessDB, CategoryDB, UserDB
 from models.crud import get_category_by_name, create_category_note
@@ -12,8 +14,16 @@ router = APIRouter(prefix="/categories", tags=["categories"])
 
 @router.get("/categories_list",response_model=list[CategoryOut], summary="Вывести все категории")
 async def get_categories(db:Session = Depends(get_db)):
+    
+    rd = get_redis()
+    cache_key = "all_categories"
+    cached_data = rd.get(cache_key)
+    if cached_data:
+        return json.loads(cached_data)
     cat = db.query(CategoryDB).all()
-    return cat
+    res = [{"id":i.id, "category_name":i.category_name }for i in cat]
+    rd.setex(cache_key, 300, json.dumps(res))
+    return res
 
 
 @router.post("/categories", summary="Добавление категории")
