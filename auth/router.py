@@ -12,6 +12,7 @@ from auth.auth_utils import (
     verify_password,
     create_token,
 )
+from core.celery_config import send_welcome_email
 from models.models import SuccessDB, UserDB, CategoryDB
 from schemas import UserNote, SuccessNote, UpdateSNote, CategoryNote
 from database import SessionLocal, get_db
@@ -29,9 +30,12 @@ def create_user(user_data: UserNote, db: Session = Depends(get_db)):
             status_code=400, detail="Пользователь с таким именем уже существует"
         )
     hashed_password = hash_password(user_data.password)
-    new_user = UserDB(username=user_data.username, hashed_pass=hashed_password)
+    new_user = UserDB(
+        username=user_data.username, email=user_data.email, hashed_pass=hashed_password
+    )
     db.add(new_user)
     db.commit()
+    send_welcome_email.delay(new_user.email)
     db.refresh(new_user)
 
     return {
@@ -41,8 +45,17 @@ def create_user(user_data: UserNote, db: Session = Depends(get_db)):
 
 
 @router.post("/signin", status_code=status.HTTP_202_ACCEPTED, summary="Вход в систему")
-def login_user(user_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
-    check_user = db.query(UserDB).filter(UserDB.username == user_data.username).first()
+def login_user(
+    user_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)
+):
+    check_user = (
+        db.query(UserDB)
+        .filter(
+            (UserDB.username == user_data.username)
+            | (UserDB.email == user_data.username)
+        )
+        .first()
+    )
     if not check_user or not verify_password(
         user_data.password, check_user.hashed_pass
     ):
@@ -75,7 +88,14 @@ def login_user(user_data: OAuth2PasswordRequestForm = Depends(), db: Session = D
 async def upload_avatar(
     request: Request, file: UploadFile = File(...), db: Session = Depends(get_db)
 ):
+    os.makedirs("static/avatars", exist_ok=True)
+
     user_id = get_user_id_from_cookie(request, db)
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Вы не авторизованы")
+    user = db.query(UserDB).filter(UserDB.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Пользователь не найден")
     if file.content_type not in ["image/jpeg", "image/png", "image/jpg"]:
         raise HTTPException(status_code=400, detail="Только jpeg, jpg или png")
     user = db.query(UserDB).filter(UserDB.id == user_id).first()
@@ -110,6 +130,6 @@ async def delete_acc(request: Request, db: Session = Depends(get_db)):
     db.delete(user)
     db.commit()
     response = JSONResponse(content={"msg": "Аккаунт полностью удален"})
-    response.delete_cookie("access_token") 
+    response.delete_cookie("access_token")
     return response
     # return {"msg": "Пользователь удален", "user_id": user_id}

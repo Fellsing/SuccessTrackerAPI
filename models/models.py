@@ -34,6 +34,7 @@ class UserDB(Base):
     id = Column(Integer, primary_key=True, index=True)
     username = Column(String)
     hashed_pass = Column(String)
+    email = Column(String, unique=True)
     avatar_path = Column(String, nullable=True)
 
     notes = relationship("SuccessDB", back_populates="owner", passive_deletes=True)
